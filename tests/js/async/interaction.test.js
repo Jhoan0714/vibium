@@ -58,6 +58,44 @@ describe('Interaction: Checkpoint', () => {
     assert.strictEqual(await first.isChecked(), false, 'First checkbox should be unchecked');
   });
 
+  test('checkbox: check and uncheck with xpath-only locator', async () => {
+    const vibe = await bro.page();
+    await vibe.go(baseURL + '/checkboxes');
+
+    const first = await vibe.find({ xpath: "(//input[@type='checkbox'])[1]" });
+    await first.check();
+
+    let checked = await vibe.evaluate(`
+      document.querySelectorAll('input[type="checkbox"]')[0].checked;
+    `);
+    assert.strictEqual(checked, true, 'First checkbox should be checked via xpath');
+
+    await first.uncheck();
+    checked = await vibe.evaluate(`
+      document.querySelectorAll('input[type="checkbox"]')[0].checked;
+    `);
+    assert.strictEqual(checked, false, 'First checkbox should be unchecked via xpath');
+  });
+
+  test('checkbox: check and uncheck with semantic role locator', async () => {
+    const vibe = await bro.page();
+    await vibe.go(baseURL + '/checkboxes');
+
+    const first = await vibe.find({ role: 'checkbox' });
+    await first.check();
+
+    let checked = await vibe.evaluate(`
+      document.querySelectorAll('input[type="checkbox"]')[0].checked;
+    `);
+    assert.strictEqual(checked, true, 'First checkbox should be checked via role');
+
+    await first.uncheck();
+    checked = await vibe.evaluate(`
+      document.querySelectorAll('input[type="checkbox"]')[0].checked;
+    `);
+    assert.strictEqual(checked, false, 'First checkbox should be unchecked via role');
+  });
+
   test('hover reveals hidden content', async () => {
     const vibe = await bro.page();
     await vibe.go(baseURL + '/hovers');
@@ -157,6 +195,44 @@ describe('Interaction: Input methods', () => {
     assert.strictEqual(value, '', 'clear() should empty the input');
   });
 
+  test('fill and clear work with xpath-only locator', async () => {
+    const vibe = await bro.page();
+    await vibe.go(baseURL + '/login');
+
+    const username = await vibe.find({ xpath: "//input[@id='username']" });
+    await username.fill('xpath-value');
+
+    let value = await vibe.evaluate(`
+      document.getElementById('username').value;
+    `);
+    assert.strictEqual(value, 'xpath-value', 'fill() should work with xpath locator');
+
+    await username.clear();
+    value = await vibe.evaluate(`
+      document.getElementById('username').value;
+    `);
+    assert.strictEqual(value, '', 'clear() should work with xpath locator');
+  });
+
+  test('fill and clear work with role+label locator', async () => {
+    const vibe = await bro.page();
+    await vibe.go(baseURL + '/login');
+
+    const username = await vibe.find({ role: 'textbox', label: 'Username' });
+    await username.fill('semantic-value');
+
+    let value = await vibe.evaluate(`
+      document.getElementById('username').value;
+    `);
+    assert.strictEqual(value, 'semantic-value', 'fill() should work with role+label locator');
+
+    await username.clear();
+    value = await vibe.evaluate(`
+      document.getElementById('username').value;
+    `);
+    assert.strictEqual(value, '', 'clear() should work with role+label locator');
+  });
+
   test('press sends key events', async () => {
     const vibe = await bro.page();
     await vibe.go(baseURL + '/login');
@@ -189,6 +265,32 @@ describe('Interaction: Select', () => {
     `);
     assert.strictEqual(value, '2', 'selectOption should set dropdown value');
   });
+
+  test('selectOption works with xpath-only locator', async () => {
+    const vibe = await bro.page();
+    await vibe.go(baseURL + '/dropdown');
+
+    const dropdown = await vibe.find({ xpath: "//select[@id='dropdown']" });
+    await dropdown.selectOption('1');
+
+    const value = await vibe.evaluate(`
+      document.getElementById('dropdown').value;
+    `);
+    assert.strictEqual(value, '1', 'selectOption should work with xpath locator');
+  });
+
+  test('selectOption works with semantic role locator', async () => {
+    const vibe = await bro.page();
+    await vibe.go(baseURL + '/dropdown');
+
+    const dropdown = await vibe.find({ role: 'combobox' });
+    await dropdown.selectOption('2');
+
+    const value = await vibe.evaluate(`
+      document.getElementById('dropdown').value;
+    `);
+    assert.strictEqual(value, '2', 'selectOption should work with role locator');
+  });
 });
 
 describe('Interaction: Focus', () => {
@@ -203,6 +305,32 @@ describe('Interaction: Focus', () => {
       document.activeElement ? document.activeElement.id : '';
     `);
     assert.strictEqual(activeId, 'username', 'focus() should set active element');
+  });
+
+  test('focus works with xpath-only locator', async () => {
+    const vibe = await bro.page();
+    await vibe.go(baseURL + '/login');
+
+    const username = await vibe.find({ xpath: "//input[@id='username']" });
+    await username.focus();
+
+    const activeId = await vibe.evaluate(`
+      document.activeElement ? document.activeElement.id : '';
+    `);
+    assert.strictEqual(activeId, 'username', 'focus() should work with xpath locator');
+  });
+
+  test('focus works with role+label locator', async () => {
+    const vibe = await bro.page();
+    await vibe.go(baseURL + '/login');
+
+    const username = await vibe.find({ role: 'textbox', label: 'Username' });
+    await username.focus();
+
+    const activeId = await vibe.evaluate(`
+      document.activeElement ? document.activeElement.id : '';
+    `);
+    assert.strictEqual(activeId, 'username', 'focus() should work with role+label locator');
   });
 });
 
@@ -275,6 +403,46 @@ describe('Interaction: dispatchEvent', () => {
       window.__eventFired;
     `);
     assert.strictEqual(fired, true, 'dispatchEvent should fire the event');
+  });
+
+  test('dispatchEvent works with xpath-only locator', async () => {
+    const vibe = await bro.page();
+    await vibe.go(baseURL + '/login');
+
+    await vibe.evaluate(`
+      window.__userClicks = 0;
+      document.getElementById('username').addEventListener('click', () => {
+        window.__userClicks += 1;
+      });
+    `);
+
+    const username = await vibe.find({ xpath: "//input[@id='username']" });
+    await username.dispatchEvent('click', { bubbles: true });
+
+    const clicks = await vibe.evaluate(`
+      window.__userClicks;
+    `);
+    assert.strictEqual(clicks, 1, 'dispatchEvent should work with xpath locator');
+  });
+
+  test('dispatchEvent works with role+label locator', async () => {
+    const vibe = await bro.page();
+    await vibe.go(baseURL + '/login');
+
+    await vibe.evaluate(`
+      window.__userClicks = 0;
+      document.getElementById('username').addEventListener('click', () => {
+        window.__userClicks += 1;
+      });
+    `);
+
+    const username = await vibe.find({ role: 'textbox', label: 'Username' });
+    await username.dispatchEvent('click', { bubbles: true });
+
+    const clicks = await vibe.evaluate(`
+      window.__userClicks;
+    `);
+    assert.strictEqual(clicks, 1, 'dispatchEvent should work with role+label locator');
   });
 });
 

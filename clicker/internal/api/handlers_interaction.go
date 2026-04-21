@@ -1007,87 +1007,72 @@ func ScrollWheel(s Session, context string, x, y, deltaX, deltaY int) error {
 }
 
 // --- Script builders for JS-based interactions ---
+//
+// CSS vs semantic resolution matches buildActionableScript in actionability.go:
+// use querySelector(selector) only when !hasSemantic(ep) && ep.Selector != "".
+// Otherwise use collectMatches + pickBest (same as handlers_state helpers), so
+// we never call querySelector("") when the client sent only xpath/role/text/…
+// or when selector is empty.
+//
+// Shared JS fragments keep CSS vs semantic paths in sync per operation.
 
-// buildIsCheckedScript builds a JS function to check if an element is checked.
-func buildIsCheckedScript(ep ElementParams) (string, []map[string]interface{}) {
-	args := []map[string]interface{}{
-		{"type": "string", "value": ep.Scope},
-		{"type": "string", "value": ep.Selector},
-		{"type": "number", "value": ep.Index},
-		{"type": "boolean", "value": ep.HasIndex},
+// scriptConfig describes one interaction JS builder for both CSS and semantic paths.
+type scriptConfig struct {
+	cssSignature      string
+	semanticSignature string
+	body              string
+	rootNotFound      string
+	elNotFound        string
+	extraArgs         []map[string]interface{}
+}
+
+const (
+	jsReturnFalse     = "'false'"
+	jsReturnNotFound  = "'not found'"
+	jsReturnElementNF = "'element not found'"
+)
+
+// buildScript assembles a script.callFunction declaration and argument list
+// using either the CSS or semantic element-resolution prelude.
+func buildScript(ep ElementParams, cfg scriptConfig) (string, []map[string]interface{}) {
+	var (
+		args   []map[string]interface{}
+		sig    string
+		openFn string
+	)
+
+	if useCSSInteractionScript(ep) {
+		args = buildElBaseArgs(ep)
+		sig = cfg.cssSignature
+		openFn = interactionScriptOpenCSS(cfg.rootNotFound, cfg.elNotFound)
+	} else {
+		args = buildElSemanticArgs(ep)
+		sig = cfg.semanticSignature
+		openFn = interactionScriptOpenSemantic(cfg.rootNotFound, cfg.elNotFound)
 	}
 
+	args = append(args, cfg.extraArgs...)
 	script := `
-		(scope, selector, index, hasIndex) => {
-			const root = scope ? document.querySelector(scope) : document;
-			if (!root) return 'false';
-			let el;
-			if (hasIndex) {
-				const all = root.querySelectorAll(selector);
-				el = all[index];
-			} else {
-				el = root.querySelector(selector);
-			}
-			if (!el) return 'false';
-			return el.checked ? 'true' : 'false';
+		` + sig + `
+	` + openFn + cfg.body + `
 		}
 	`
 	return script, args
 }
 
-// buildSelectOptionScript builds a JS function to set a select element's value.
-func buildSelectOptionScript(ep ElementParams, value string) (string, []map[string]interface{}) {
-	args := []map[string]interface{}{
-		{"type": "string", "value": ep.Scope},
-		{"type": "string", "value": ep.Selector},
-		{"type": "number", "value": ep.Index},
-		{"type": "boolean", "value": ep.HasIndex},
-		{"type": "string", "value": value},
-	}
-
-	script := `
-		(scope, selector, index, hasIndex, value) => {
-			const root = scope ? document.querySelector(scope) : document;
-			if (!root) return 'element not found';
-			let el;
-			if (hasIndex) {
-				const all = root.querySelectorAll(selector);
-				el = all[index];
-			} else {
-				el = root.querySelector(selector);
-			}
-			if (!el) return 'element not found';
-			if (el.tagName !== 'SELECT') return 'not a <select> element';
-			// Match by option value, then fall back to the visible label/text so
-			// passing "California" (for <option value="CA">California</option>)
-			// works. Without this, an unmatched value silently no-ops (issue #140).
-			const opts = Array.from(el.options || []);
-			const match = opts.find(o => o.value === value)
-				|| opts.find(o => ((o.label || o.text || '').trim() === value));
-			if (!match) return 'no <option> matches "' + value + '"';
-			el.value = match.value;
-			el.dispatchEvent(new Event('input', { bubbles: true }));
-			el.dispatchEvent(new Event('change', { bubbles: true }));
-			return 'ok';
-		}
-	`
-	return script, args
+// useCSSInteractionScript returns true when the strict CSS-only script path is valid.
+// Mirrors actionability.buildActionableScript branching.
+func useCSSInteractionScript(ep ElementParams) bool {
+	return !hasSemantic(ep) && ep.Selector != ""
 }
 
-// buildSetValueScript builds a JS function to set an element's value and dispatch events.
-func buildSetValueScript(ep ElementParams, value string) (string, []map[string]interface{}) {
-	args := []map[string]interface{}{
-		{"type": "string", "value": ep.Scope},
-		{"type": "string", "value": ep.Selector},
-		{"type": "number", "value": ep.Index},
-		{"type": "boolean", "value": ep.HasIndex},
-		{"type": "string", "value": value},
-	}
-
-	script := `
-		(scope, selector, index, hasIndex, value) => {
+// interactionScriptOpenCSS returns JS from `const root` through assigning `el`
+// or returning elNotFound. rootNotFound and elNotFound are full JS return
+// expressions, e.g. `'not found'` or `'false'`.
+func interactionScriptOpenCSS(rootNotFound, elNotFound string) string {
+	return `
 			const root = scope ? document.querySelector(scope) : document;
-			if (!root) return 'element not found';
+			if (!root) return ` + rootNotFound + `;
 			let el;
 			if (hasIndex) {
 				const all = root.querySelectorAll(selector);
@@ -1095,7 +1080,30 @@ func buildSetValueScript(ep ElementParams, value string) (string, []map[string]i
 			} else {
 				el = root.querySelector(selector);
 			}
-			if (!el) return 'element not found';
+			if (!el) return ` + elNotFound + `;
+	`
+}
+
+// interactionScriptOpenSemantic resolves `el` like GetAttribute / buildElStateScript.
+func interactionScriptOpenSemantic(rootNotFound, elNotFound string) string {
+	return `
+			const root = scope ? document.querySelector(scope) : document;
+			if (!root) return ` + rootNotFound + `;
+	` + semanticMatchesHelper() + `
+			const found = collectMatches(root, selector, role, text, label, placeholder, alt, title, testid, xpath);
+			let el;
+			if (hasIndex) {
+				el = found[index];
+			} else {
+				el = pickBest(found, text);
+			}
+			if (!el) return ` + elNotFound + `;
+	`
+}
+
+// setValueBody writes `value` into `el` and dispatches input/change. Assumes `el` and `value` in scope.
+func setValueBody() string {
+	return `
 			el.focus();
 			// Pick the native value setter for the element's ACTUAL type. Calling
 			// the HTMLInputElement setter on a <textarea> throws "Illegal
@@ -1116,67 +1124,113 @@ func buildSetValueScript(ep ElementParams, value string) (string, []map[string]i
 			el.dispatchEvent(new Event('input', { bubbles: true }));
 			el.dispatchEvent(new Event('change', { bubbles: true }));
 			return 'ok';
-		}
 	`
-	return script, args
+}
+
+// selectOptionValueBody sets value on <select> and dispatches standard change events.
+func selectOptionValueBody() string {
+	return `
+			if (el.tagName !== 'SELECT') return 'not a <select> element';
+			// Match by option value, then fall back to the visible label/text so
+			// passing "California" (for <option value="CA">California</option>)
+			// works. Without this, an unmatched value silently no-ops (issue #140).
+			const opts = Array.from(el.options || []);
+			const match = opts.find(o => o.value === value)
+				|| opts.find(o => ((o.label || o.text || '').trim() === value));
+			if (!match) return 'no <option> matches "' + value + '"';
+			el.value = match.value;
+			el.dispatchEvent(new Event('input', { bubbles: true }));
+			el.dispatchEvent(new Event('change', { bubbles: true }));
+			return 'ok';
+	`
+}
+
+// checkedStateBody returns the checked state encoded as 'true'/'false'.
+func checkedStateBody() string {
+	return `
+			return el.checked ? 'true' : 'false';
+	`
+}
+
+// focusBody focuses the resolved element and returns 'ok'.
+func focusBody() string {
+	return `
+			el.focus();
+			return 'ok';
+	`
+}
+
+// dispatchEventBody parses init JSON and dispatches the requested DOM event.
+func dispatchEventBody() string {
+	return `
+			const init = JSON.parse(initJSON);
+			el.dispatchEvent(new Event(eventType, init));
+			return 'ok';
+	`
+}
+
+// buildIsCheckedScript builds a JS function to check if an element is checked.
+func buildIsCheckedScript(ep ElementParams) (string, []map[string]interface{}) {
+	return buildScript(ep, scriptConfig{
+		cssSignature:      "(scope, selector, index, hasIndex) => {",
+		semanticSignature: "(scope, selector, role, text, label, placeholder, alt, title, testid, xpath, index, hasIndex) => {",
+		body:              checkedStateBody(),
+		rootNotFound:      jsReturnFalse,
+		elNotFound:        jsReturnFalse,
+	})
+}
+
+// buildSelectOptionScript builds a JS function to set a select element's value.
+func buildSelectOptionScript(ep ElementParams, value string) (string, []map[string]interface{}) {
+	return buildScript(ep, scriptConfig{
+		cssSignature:      "(scope, selector, index, hasIndex, value) => {",
+		semanticSignature: "(scope, selector, role, text, label, placeholder, alt, title, testid, xpath, index, hasIndex, value) => {",
+		body:              selectOptionValueBody(),
+		rootNotFound:      jsReturnElementNF,
+		elNotFound:        jsReturnElementNF,
+		extraArgs: []map[string]interface{}{
+			{"type": "string", "value": value},
+		},
+	})
+}
+
+// buildSetValueScript builds a JS function to set an element's value and dispatch events.
+// CSS path only when useCSSInteractionScript(ep); else semantic (see package comment above).
+func buildSetValueScript(ep ElementParams, value string) (string, []map[string]interface{}) {
+	return buildScript(ep, scriptConfig{
+		cssSignature:      "(scope, selector, index, hasIndex, value) => {",
+		semanticSignature: "(scope, selector, role, text, label, placeholder, alt, title, testid, xpath, index, hasIndex, value) => {",
+		body:              setValueBody(),
+		rootNotFound:      jsReturnElementNF,
+		elNotFound:        jsReturnElementNF,
+		extraArgs: []map[string]interface{}{
+			{"type": "string", "value": value},
+		},
+	})
 }
 
 // buildFocusScript builds a JS function to focus an element.
 func buildFocusScript(ep ElementParams) (string, []map[string]interface{}) {
-	args := []map[string]interface{}{
-		{"type": "string", "value": ep.Scope},
-		{"type": "string", "value": ep.Selector},
-		{"type": "number", "value": ep.Index},
-		{"type": "boolean", "value": ep.HasIndex},
-	}
-
-	script := `
-		(scope, selector, index, hasIndex) => {
-			const root = scope ? document.querySelector(scope) : document;
-			if (!root) return 'not found';
-			let el;
-			if (hasIndex) {
-				const all = root.querySelectorAll(selector);
-				el = all[index];
-			} else {
-				el = root.querySelector(selector);
-			}
-			if (!el) return 'not found';
-			el.focus();
-			return 'ok';
-		}
-	`
-	return script, args
+	return buildScript(ep, scriptConfig{
+		cssSignature:      "(scope, selector, index, hasIndex) => {",
+		semanticSignature: "(scope, selector, role, text, label, placeholder, alt, title, testid, xpath, index, hasIndex) => {",
+		body:              focusBody(),
+		rootNotFound:      jsReturnNotFound,
+		elNotFound:        jsReturnNotFound,
+	})
 }
 
 // buildDispatchEventScript builds a JS function to dispatch an event on an element.
 func buildDispatchEventScript(ep ElementParams, eventType, initJSON string) (string, []map[string]interface{}) {
-	args := []map[string]interface{}{
-		{"type": "string", "value": ep.Scope},
-		{"type": "string", "value": ep.Selector},
-		{"type": "number", "value": ep.Index},
-		{"type": "boolean", "value": ep.HasIndex},
-		{"type": "string", "value": eventType},
-		{"type": "string", "value": initJSON},
-	}
-
-	script := `
-		(scope, selector, index, hasIndex, eventType, initJSON) => {
-			const root = scope ? document.querySelector(scope) : document;
-			if (!root) return 'not found';
-			let el;
-			if (hasIndex) {
-				const all = root.querySelectorAll(selector);
-				el = all[index];
-			} else {
-				el = root.querySelector(selector);
-			}
-			if (!el) return 'not found';
-			const init = JSON.parse(initJSON);
-			el.dispatchEvent(new Event(eventType, init));
-			return 'ok';
-		}
-	`
-	return script, args
+	return buildScript(ep, scriptConfig{
+		cssSignature:      "(scope, selector, index, hasIndex, eventType, initJSON) => {",
+		semanticSignature: "(scope, selector, role, text, label, placeholder, alt, title, testid, xpath, index, hasIndex, eventType, initJSON) => {",
+		body:              dispatchEventBody(),
+		rootNotFound:      jsReturnNotFound,
+		elNotFound:        jsReturnNotFound,
+		extraArgs: []map[string]interface{}{
+			{"type": "string", "value": eventType},
+			{"type": "string", "value": initJSON},
+		},
+	})
 }
-
