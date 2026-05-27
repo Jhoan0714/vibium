@@ -32,6 +32,7 @@ go.work.sum
 # .vscode/
 .gemini/
 .claude/
+.agents/
 
 # Node.js
 node_modules/
@@ -55,6 +56,14 @@ packages/*/bin/
 
 # Test screenshots
 screenshots/
+
+# Recording/trace artifacts
+*-record.zip
+*-trace.zip
+saucedemo-record/
+
+# External reference checkouts
+reference/
 
 # NPM package tarballs
 *.tgz
