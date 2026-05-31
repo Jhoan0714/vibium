@@ -273,6 +273,7 @@ test-python: build-go install-browser
 		if [ ! -d ".venv" ]; then $(PYTHON) -m venv .venv; fi && \
 		. $(VENV_ACTIVATE) && \
 		if ! python -c "import vibium, xdist" 2>/dev/null; then \
+			python -m pip install --quiet --upgrade pip && \
 			pip install -e ../../packages/python/$(PYTHON_PLATFORM_PKG) -e ".[test]"; \
 		fi && \
 		VIBIUM_BIN_PATH=$(CURDIR)/clicker/bin/vibium$(EXE) \
