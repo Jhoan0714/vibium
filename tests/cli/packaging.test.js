@@ -13,13 +13,15 @@ const os = require('node:os');
 const path = require('node:path');
 
 const PKG_DIR = path.join(__dirname, '../../packages/vibium');
+// On Windows `npm` is `npm.cmd`; execFileSync has no shell to resolve the bare name.
+const NPM = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 
 describe('Packaging: npm tarball contents', () => {
   test('npm pack includes the built dist files (#103/#127/#100)', () => {
     const dest = fs.mkdtempSync(path.join(os.tmpdir(), 'vibium-pack-'));
     // `npm pack --json` writes machine-readable output to stdout; the prepack
     // build logs go to stderr (see scripts/prepack.mjs).
-    const out = execFileSync('npm', ['pack', '--json', '--pack-destination', dest], {
+    const out = execFileSync(NPM, ['pack', '--json', '--pack-destination', dest], {
       cwd: PKG_DIR,
       encoding: 'utf-8',
       stdio: ['ignore', 'pipe', 'inherit'],

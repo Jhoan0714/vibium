@@ -18,6 +18,10 @@ import { cpSync, existsSync, mkdirSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+// On Windows `npm` is `npm.cmd`; execFileSync doesn't go through a shell, so it
+// can't resolve the bare name and fails with ENOENT.
+const NPM = process.platform === "win32" ? "npm.cmd" : "npm";
+
 const pkgDir = join(dirname(fileURLToPath(import.meta.url)), "..");
 const distDir = join(pkgDir, "dist");
 // packages/vibium -> packages -> <repo root> -> clients/javascript
@@ -43,7 +47,7 @@ function buildClient() {
   console.error("[prepack] Building JS client in clients/javascript ...");
   // Send the child's stdout to our stderr (fd 2) so build logs don't pollute
   // stdout either.
-  execFileSync("npm", ["run", "build"], { cwd: clientDir, stdio: ["ignore", 2, 2] });
+  execFileSync(NPM, ["run", "build"], { cwd: clientDir, stdio: ["ignore", 2, 2] });
 }
 
 function copyDist() {
