@@ -419,6 +419,12 @@ set-version:
 	@# Regenerate package-lock.json with new versions
 	@rm -f package-lock.json
 	@npm install --package-lock-only --silent
+	@# The just-bumped @vibium/* platform packages aren't published to npm yet, so
+	@# npm leaves their lockfile entries without a version field. That crashes
+	@# `npm install` on fresh clones with "Invalid Version: " during dedupe. Backfill
+	@# the version so the lockfile is valid; npm fills in resolved/integrity on the
+	@# first real install once the packages are published.
+	@VIBIUM_VERSION="$(VERSION)" node -e 'const fs=require("fs"),f="package-lock.json",v=process.env.VIBIUM_VERSION,l=JSON.parse(fs.readFileSync(f,"utf8"));let n=0;for(const[k,e]of Object.entries(l.packages||{}))if(/(^|\/)@vibium\//.test(k)&&e&&e.version==null){e.version=v;n++}fs.writeFileSync(f,JSON.stringify(l,null,2)+"\n");console.log("Backfilled "+n+" @vibium lockfile entr"+(n===1?"y":"ies")+" with version "+v)'
 	@echo "Updated version to $(VERSION) in all files"
 	@echo "Files updated:"
 	@echo "  - VERSION"
