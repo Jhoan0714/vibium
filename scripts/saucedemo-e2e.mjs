@@ -15,7 +15,7 @@ await vibe.context.recording.start({
     name: "saucedemo-e2e",
     title: "Vibium - SauceDemo E2E Test",
     screenshots: true,
-    snapshots: true,
+    snapshots: false,
     format: "jpeg",
     quality: 0.1,
 });
