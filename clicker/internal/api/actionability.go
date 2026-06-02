@@ -236,6 +236,7 @@ func callActionableScript(s Session, context, script string, args []map[string]i
 // Stability is checked on the Go side: after all JS-side checks pass, we sleep 50ms
 // and re-run the script to compare bounding boxes. This avoids needing awaitPromise: true.
 func WaitForActionable(s Session, context string, ep ElementParams, checks []ActionCheck) (*ElementInfo, error) {
+	ep = ep.withDefaultTimeout()
 	needStable := checksContain(checks, CheckStable)
 	// Build script without stability (handled on Go side)
 	checksWithoutStable := make([]ActionCheck, 0, len(checks))
@@ -294,14 +295,8 @@ func WaitForActionable(s Session, context string, ep ElementParams, checks []Act
 // resolveWithActionability resolves an element with actionability checks.
 // If Force is set or no checks are needed, falls back to plain ResolveElement.
 func resolveWithActionability(s Session, context string, ep ElementParams, checks []ActionCheck) (*ElementInfo, error) {
-	// A zero/unset timeout means "use the default" — actions must auto-wait for
-	// transient conditions (overlays, toasts, animations, re-renders) to clear,
-	// matching the protocol path (ExtractElementParams). CLI/MCP handlers build
-	// ElementParams inline without a timeout; without this they'd fail the first
-	// check with "timeout after 0s" instead of waiting (issue #173).
-	if ep.Timeout <= 0 {
-		ep.Timeout = DefaultTimeout
-	}
+	// Timeout normalization (auto-wait default) happens in ResolveElement /
+	// WaitForActionable, which both branches below funnel through.
 	if ep.Force || len(checks) == 0 {
 		return ResolveElement(s, context, ep)
 	}

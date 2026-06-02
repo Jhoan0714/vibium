@@ -1011,6 +1011,7 @@ func ResolveElementNoWait(s Session, context string, ep ElementParams) (*Element
 
 // WaitForVisible polls until the element exists and is visible, or times out.
 func WaitForVisible(s Session, context string, ep ElementParams) error {
+	ep = ep.withDefaultTimeout()
 	deadline := time.Now().Add(ep.Timeout)
 	interval := 100 * time.Millisecond
 
@@ -1032,6 +1033,7 @@ func WaitForVisible(s Session, context string, ep ElementParams) error {
 
 // WaitForHidden polls until the element is either not found or not visible.
 func WaitForHidden(s Session, context string, ep ElementParams) error {
+	ep = ep.withDefaultTimeout()
 	deadline := time.Now().Add(ep.Timeout)
 	interval := 100 * time.Millisecond
 

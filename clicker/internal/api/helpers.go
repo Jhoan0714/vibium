@@ -156,6 +156,19 @@ type ElementParams struct {
 	Force       bool
 }
 
+// withDefaultTimeout returns ep with a default timeout applied when it is unset
+// (zero or negative). Element resolution must auto-wait — a core feature — even
+// when callers build ElementParams inline without a timeout (e.g. the CLI/MCP
+// daemon handlers). Applied at every polling-find entry point so no caller can
+// accidentally disable auto-wait. The protocol path (ExtractElementParams) sets
+// 30s explicitly, so this only affects inline callers (issue #173).
+func (ep ElementParams) withDefaultTimeout() ElementParams {
+	if ep.Timeout <= 0 {
+		ep.Timeout = DefaultTimeout
+	}
+	return ep
+}
+
 // ExtractElementParams extracts element parameters from command params.
 func ExtractElementParams(params map[string]interface{}) ElementParams {
 	ep := ElementParams{
@@ -322,6 +335,7 @@ func CallScript(s Session, context, fn string, args []map[string]interface{}) (j
 
 // ResolveElement finds an element using the given params, polling until found or timeout.
 func ResolveElement(s Session, context string, ep ElementParams) (*ElementInfo, error) {
+	ep = ep.withDefaultTimeout()
 	script, args := buildActionFindScript(ep)
 	info, err := WaitForElementWithScript(s, context, script, args, ep.Timeout)
 	if err == nil && info != nil {
@@ -332,6 +346,7 @@ func ResolveElement(s Session, context string, ep ElementParams) (*ElementInfo, 
 
 // ResolveElementRef finds an element and returns its BiDi sharedId.
 func ResolveElementRef(s Session, context string, ep ElementParams) (string, error) {
+	ep = ep.withDefaultTimeout()
 	script, args := buildRefFindScript(ep)
 	deadline := time.Now().Add(ep.Timeout)
 	interval := 100 * time.Millisecond
