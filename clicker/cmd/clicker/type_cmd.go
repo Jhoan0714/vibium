@@ -50,5 +50,6 @@ func newTypeCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().Duration("timeout", api.DefaultTimeout, "Timeout for actionability checks (e.g., 5s, 30s)")
+	cmd.Flags().SetInterspersed(false)
 	return cmd
 }
