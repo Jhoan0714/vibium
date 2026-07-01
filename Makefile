@@ -43,7 +43,7 @@ endif
 # only fires when something has gone catastrophically wrong. A healthy
 # sequential test-js phase is ~6-10 minutes because Chrome launch is ~16s
 # per file on macOS (see clients/javascript/src/clicker/process.ts). For
-# faster iteration use JS_PARALLEL=4 (Makefile:189) which cuts wall time ~3x.
+# faster iteration bump JS_PARALLEL (default 3) to use more cores.
 TEST_TIMEOUT ?= 600
 TIMEOUT_CMD := node scripts/timeout.mjs $(TEST_TIMEOUT)
 
