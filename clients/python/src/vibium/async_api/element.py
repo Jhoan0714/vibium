@@ -120,6 +120,9 @@ class Element:
             "files": files,
             "timeout": timeout,
         }))
+    
+    async def highlight(self) -> None:
+        await self._client.send("vibium:element.highlight", self._command_params())
 
     # --- State ---
 
