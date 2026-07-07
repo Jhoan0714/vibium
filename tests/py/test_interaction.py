@@ -92,6 +92,12 @@ async def test_scroll_into_view(async_page, test_server):
     assert await el.is_visible()
 
 
+async def test_highlight(async_page, test_server):
+    await async_page.go(test_server)
+    el = await async_page.find("#info")
+    await el.highlight()
+
+
 async def test_dispatch_event(async_page, test_server):
     await async_page.go(test_server + "/inputs")
     inp = await async_page.find("#text-input")
