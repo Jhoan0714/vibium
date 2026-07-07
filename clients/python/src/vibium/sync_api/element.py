@@ -79,6 +79,9 @@ class Element:
 
     def set_files(self, files: List[str], timeout: Optional[int] = None) -> None:
         self._loop.run(self._async.set_files(files, timeout))
+    
+    def highlight(self) -> None:
+        self._loop.run(self._async.highlight())
 
     # --- State ---
 
