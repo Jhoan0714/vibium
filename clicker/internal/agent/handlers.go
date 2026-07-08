@@ -3949,14 +3949,14 @@ func (h *Handlers) browserStorageState(args map[string]interface{}) (*ToolsCallR
 		})()
 	})`
 
-	storageJSON, err := h.client.Evaluate("", script)
+	storageEvalResult, err := h.client.Evaluate("", script)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get storage: %w", err)
 	}
 
-	storageStr, ok := storageJSON.(string)
+	storageStr, ok := storageEvalResult.(string)
 	if !ok {
-		return nil, fmt.Errorf("unexpected storage result type: %T", storageJSON)
+		return nil, fmt.Errorf("unexpected storage result type: %T", storageEvalResult)
 	}
 
 	var storageResult interface{}
