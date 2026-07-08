@@ -3949,9 +3949,19 @@ func (h *Handlers) browserStorageState(args map[string]interface{}) (*ToolsCallR
 		})()
 	})`
 
-	storageResult, err := h.client.Evaluate("", script)
+	storageJSON, err := h.client.Evaluate("", script)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get storage: %w", err)
+	}
+
+	storageStr, ok := storageJSON.(string)
+	if !ok {
+		return nil, fmt.Errorf("unexpected storage result type: %T", storageJSON)
+	}
+
+	var storageResult interface{}
+	if err := json.Unmarshal([]byte(storageStr), &storageResult); err != nil {
+		return nil, fmt.Errorf("failed to parse storage data: %w", err)
 	}
 
 	// Build combined state
