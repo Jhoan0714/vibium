@@ -16,7 +16,7 @@ func (r *Router) handleVibiumElText(session *BrowserSession, cmd bidiCommand) {
 		return
 	}
 
-	script, args := buildElStateScript(ep, `(el.innerText || '').trim()`)
+	script, args := buildElStateScript(ep, `(el.textContent || '').trim()`)
 	val, err := r.evalElementScript(session, context, script, args)
 	if err != nil {
 		r.sendError(session, cmd.ID, err)
