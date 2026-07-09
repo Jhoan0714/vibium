@@ -32,6 +32,14 @@ func printResult(result *agent.ToolsCallResult) {
 	}
 
 	// Human-readable: just print the text content
+	// when Notice is set, prefix it to the primary text result.
+	if result.Notice != "" {
+		if text := extractText(result); text != "" {
+			fmt.Println(result.Notice + " - " + text)
+			return
+		}
+	}
+
 	for _, c := range result.Content {
 		if c.Type == "text" && c.Text != "" {
 			fmt.Println(c.Text)
