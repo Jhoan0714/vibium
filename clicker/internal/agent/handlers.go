@@ -85,6 +85,19 @@ func (h *Handlers) Call(name string, args map[string]interface{}) (*ToolsCallRes
 
 	result, err := h.dispatch(name, args)
 
+	// If the browser connection died mid-session, relaunch a
+	// fresh browser, retrying the command once so the failure is invisible
+	// whenever possible instead of surfacing a confusing "broken pipe".
+	if err != nil && isConnectionError(err) && name != "browser_start" {
+		log.Debug("browser connection lost, relaunching and retrying", "command", name, "error", err)
+		h.resetBrowserState()
+		result, err = h.dispatch(name, args)
+
+		if err == nil && result != nil {
+			result.Notice = "Browser connection lost, relaunched automatically"
+		}
+	}
+
 	endTime := time.Now()
 
 	// Read and clear the element box stashed by AgentSession.SetLastElementBox
@@ -2527,6 +2540,31 @@ func (h *Handlers) ensureBrowser() error {
 		}
 	}
 	return nil
+}
+
+// isConnectionError reports whether err indicates the underlying browser
+// connection died (crashed process, closed socket), as opposed to an
+// application-level failure (e.g. "element not found").
+func isConnectionError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "broken pipe") ||
+		strings.Contains(msg, "closed network connection") ||
+		strings.Contains(msg, "connection reset") ||
+		strings.Contains(msg, "EOF")
+}
+
+// resetBrowserState discards a stale client/connection so the next
+// ensureBrowser() call relaunches a fresh browser session.
+func (h *Handlers) resetBrowserState() {
+	if h.conn != nil {
+		h.conn.Close()
+	}
+	h.client = nil
+	h.conn = nil
+	h.launchResult = nil
 }
 
 // resolveRefsInArgs returns a copy of args with any @ref selector resolved
