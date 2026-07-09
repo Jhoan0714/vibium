@@ -81,13 +81,16 @@ func (c *Client) Evaluate(context, expression string) (interface{}, error) {
 	var evalResult struct {
 		Type   string          `json:"type"`
 		Result json.RawMessage `json:"result"`
+		ExceptionDetails struct {
+			Text string `json:"text"`
+		} `json:"exceptionDetails"`
 	}
 	if err := json.Unmarshal(msg.Result, &evalResult); err != nil {
 		return nil, fmt.Errorf("failed to parse script.evaluate result: %w", err)
 	}
 
 	if evalResult.Type == "exception" {
-		return nil, fmt.Errorf("script exception: %s", string(evalResult.Result))
+		return nil, fmt.Errorf("script exception: %s", evalResult.ExceptionDetails.Text)
 	}
 
 	// Parse the remote value
@@ -137,13 +140,16 @@ func (c *Client) CallFunction(context, functionDeclaration string, args []interf
 	var callResult struct {
 		Type   string          `json:"type"`
 		Result json.RawMessage `json:"result"`
+		ExceptionDetails struct {
+			Text string `json:"text"`
+		} `json:"exceptionDetails"`
 	}
 	if err := json.Unmarshal(msg.Result, &callResult); err != nil {
 		return nil, fmt.Errorf("failed to parse script.callFunction result: %w", err)
 	}
 
 	if callResult.Type == "exception" {
-		return nil, fmt.Errorf("script exception: %s", string(callResult.Result))
+		return nil, fmt.Errorf("script exception: %s", callResult.ExceptionDetails.Text)
 	}
 
 	// Parse the remote value
