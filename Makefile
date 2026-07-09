@@ -46,6 +46,13 @@ endif
 # faster iteration bump JS_PARALLEL (default 3) to use more cores.
 TEST_TIMEOUT ?= 600
 TIMEOUT_CMD := node scripts/timeout.mjs $(TEST_TIMEOUT)
+# Same watchdog for recipes that cd out of the repo root (pytest, gradlew).
+# Empty on Windows: timeout.mjs spawns via cmd.exe, which can't run ./gradlew.
+ifeq ($(OS),Windows_NT)
+  TIMEOUT_CMD_ABS :=
+else
+  TIMEOUT_CMD_ABS := node $(CURDIR)/scripts/timeout.mjs $(TEST_TIMEOUT)
+endif
 
 # Node test runner flags: per-test timeout + force exit on dangling handles.
 # The slowest healthy test today is ~20s (websocket "monitoring survives
@@ -293,7 +300,7 @@ test-python: build-go install-browser
 			pip install -e ../../packages/python/$(PYTHON_PLATFORM_PKG) -e ".[test]"; \
 		fi && \
 		VIBIUM_BIN_PATH=$(CURDIR)/clicker/bin/vibium$(EXE) \
-		python -m pytest ../../tests/py/ -v --tb=short -x -n $(PY_PARALLEL) --dist=loadfile
+		$(TIMEOUT_CMD_ABS) python -m pytest ../../tests/py/ -v --tb=short -x -n $(PY_PARALLEL) --dist=loadfile
 
 # Build Java client JAR (dev — no native binaries, fast)
 build-java: build-go
@@ -306,7 +313,7 @@ build-java: build-go
 JAVA_PARALLEL ?= 3
 test-java: build-go install-browser
 	@echo "--- Java Client Tests (parallel x$(JAVA_PARALLEL)) ---"
-	cd clients/java && VIBIUM_BIN_PATH=$(CURDIR)/clicker/bin/vibium$(EXE) ./gradlew test -PjavaParallel=$(JAVA_PARALLEL)
+	cd clients/java && VIBIUM_BIN_PATH=$(CURDIR)/clicker/bin/vibium$(EXE) $(TIMEOUT_CMD_ABS) ./gradlew test -PjavaParallel=$(JAVA_PARALLEL)
 
 # Package Java JAR with native binaries
 package-java: build-go-all
