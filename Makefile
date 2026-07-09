@@ -181,12 +181,15 @@ test: build install-browser
 		exit $$EXIT; \
 	fi
 
-# Kill any Chrome/chromedriver processes left over from tests
+# Kill any Chrome/chromedriver processes left over from tests.
+# The bracketed characters stop Linux pkill from SIGKILLing the recipe's
+# own shell, whose command line contains the pattern.
 test-cleanup:
 	@$(CURDIR)/clicker/bin/vibium$(EXE) daemon stop 2>/dev/null || true
-	@pkill -9 -f 'Chrome for Testing' 2>/dev/null || true
-	@pkill -9 -f 'chromedriver' 2>/dev/null || true
-	@pkill -9 -f 'sync-test-server.js' 2>/dev/null || true
+	@pkill -9 -f 'Chrome for [T]esting' 2>/dev/null || true
+	@pkill -9 -f 'chrome-for-testin[g]' 2>/dev/null || true
+	@pkill -9 -f 'chromedrive[r]' 2>/dev/null || true
+	@pkill -9 -f 'sync-test-server.j[s]' 2>/dev/null || true
 
 # Run CLI tests (tests the vibium binary directly)
 # Process tests run separately with --test-concurrency=1 to avoid interference
@@ -328,9 +331,10 @@ ifeq ($(OS),Windows_NT)
 	@cmd //c "taskkill /F /IM chrome.exe" 2>/dev/null || true
 	@cmd //c "taskkill /F /IM chromedriver.exe" 2>/dev/null || true
 else
-	@pkill -9 -f 'Chrome for Testing' 2>/dev/null || true
-	@pkill -9 -f chromedriver 2>/dev/null || true
-	@pkill -9 -f 'sync-test-server.js' 2>/dev/null || true
+	@pkill -9 -f 'Chrome for [T]esting' 2>/dev/null || true
+	@pkill -9 -f 'chrome-for-testin[g]' 2>/dev/null || true
+	@pkill -9 -f 'chromedrive[r]' 2>/dev/null || true
+	@pkill -9 -f 'sync-test-server.j[s]' 2>/dev/null || true
 endif
 	@sleep 1
 	@echo "Done."
