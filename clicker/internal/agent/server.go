@@ -106,6 +106,7 @@ type ToolsCallParams struct {
 type ToolsCallResult struct {
 	Content []Content `json:"content"`
 	IsError bool      `json:"isError,omitempty"`
+	Notice  string    `json:"notice,omitempty"`
 }
 
 type Content struct {
